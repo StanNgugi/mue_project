@@ -12,6 +12,9 @@ from matplotlib.cm import ScalarMappable # For colorbars
 from tqdm.auto import tqdm
 import wandb
 
+# --- ADDED THIS LINE: Import necessary types from 'typing' module ---
+from typing import Dict, Any, Optional, Tuple, Callable 
+
 # Project-specific imports
 from mue.data_handling.synthetic_generators import get_gmm_data_for_training_and_evaluation
 from mue.data_handling.rasterizers import rasterize_points_to_density_map
@@ -22,7 +25,6 @@ from mue.utils.logging import initialize_wandb # Assuming this utility exists
 
 # Diffusers imports for model and scheduler
 from diffusers import UNet2DModel, DDPMScheduler
-
 
 def load_config(config_path: str) -> dict:
     """Loads a YAML configuration file."""
@@ -62,8 +64,7 @@ def plot_dis_map(
     timestep: int,
     image_size: Tuple[int, int],
     save_path: Optional[Path] = None,
-    dpi: int = 100
-):
+    dpi: int = 100):
     """
     Plots the DIS map, overlaid with GMM mode centers and points.
     Highlights the missing mode.
