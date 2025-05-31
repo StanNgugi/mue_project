@@ -3,7 +3,7 @@ import os
 import shutil
 import yaml
 from pathlib import Path
-from PIL import Image
+from PIL import Image # Ensure PIL is imported
 
 import torch
 import torch.nn.functional as F
@@ -11,11 +11,11 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
 from diffusers import UNet2DModel, DDPMScheduler
-from diffusers.optimization import get_scheduler as get_lr_scheduler # Renamed to avoid conflict
-from diffusers.utils import make_image_grid # Corrected import
+from diffusers.optimization import get_scheduler as get_lr_scheduler
+from diffusers.utils import make_image_grid
 
 from tqdm.auto import tqdm
-import wandb # Added import
+import wandb
 
 # Project-specific imports
 from mue.data_handling.datasets import get_gmm_dataloader
@@ -23,6 +23,7 @@ from mue.utils.seeding import set_global_seeds
 from mue.utils.logging import initialize_wandb # Assuming this utility exists
 
 def load_config(config_path: str) -> dict:
+    """Loads and resolves the training configuration from a YAML file."""
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     # Resolve sample_size from rasterization_config if using placeholder
@@ -32,6 +33,7 @@ def load_config(config_path: str) -> dict:
     return config
 
 def save_model_checkpoint(model, scheduler, output_dir, epoch_or_step, is_final=False):
+    """Saves the model and scheduler state to a checkpoint directory."""
     save_path = Path(output_dir) / f"checkpoint_{'final' if is_final else epoch_or_step}"
     save_path.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(str(save_path))
@@ -39,6 +41,7 @@ def save_model_checkpoint(model, scheduler, output_dir, epoch_or_step, is_final=
     print(f"Saved model checkpoint to {save_path}")
 
 def generate_and_save_samples(model, scheduler, num_samples, image_size, num_inference_steps, device, output_path, epoch_or_step):
+    """Generates samples from the trained model and saves them as an image grid."""
     model.eval()
     # Ensure image_size is a tuple of integers if it comes from config as list
     if isinstance(image_size, list):
@@ -64,7 +67,14 @@ def generate_and_save_samples(model, scheduler, num_samples, image_size, num_inf
     samples = (latents / 2 + 0.5).clamp(0, 1)  # Denormalize to [0, 1]
     samples = (samples * 255).type(torch.uint8).cpu() # Convert to 0-255 for image saving
 
-    grid = make_image_grid([img for img in samples], rows=1, cols=num_samples)
+    # --- FIX: Convert PyTorch tensors to PIL Images ---
+    pil_images = []
+    for img_tensor in samples:
+        # Squeeze the channel dimension (from 1, H, W to H, W) and convert to NumPy array
+        # Then create a PIL Image in 'L' (grayscale) mode.
+        pil_images.append(Image.fromarray(img_tensor.squeeze(0).numpy(), mode='L'))
+    
+    grid = make_image_grid(pil_images, rows=1, cols=num_samples) # Pass the list of PIL Images
     
     # Ensure output_path's parent directory exists
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +83,7 @@ def generate_and_save_samples(model, scheduler, num_samples, image_size, num_inf
     return grid # Return PIL image for W&B logging
 
 def main(config_path: str):
+    """Main training function for the DDPM."""
     config = load_config(config_path)
 
     # Setup output directory
@@ -132,17 +143,12 @@ def main(config_path: str):
         eps=config['training_config']['adam_epsilon'],
     )
 
-    # Calculate total training steps if num_train_epochs is given
-    # Since the dataset has 1 item (the density map), len(train_dataloader) will be 1 if batch_size=1.
-    # If batch_size > 1 in dataloader_config, the DataLoader will still yield one batch of size 1.
-    # The effective number of times we process this single image is num_train_epochs * (dataloader_batch_size / actual_batch_seen_by_model).
-    # Let's assume our loop iterates num_train_epochs times, and each "step" processes the single image.
-    # The learning rate scheduler needs total steps.
-    
-    # The DataLoader returns a single batch containing the single image.
-    # So, one epoch = one step through the dataloader.
+    # Calculate total training steps
+    # Since the dataset has 1 item (the density map), len(train_dataloader) will be 1.
+    # The effective number of times we process this single image is num_train_epochs * (dataloader_batch_size if repeated).
+    # Here, our DataLoader will yield one batch (containing the single image).
     num_update_steps_per_epoch = len(train_dataloader) // config['training_config']['gradient_accumulation_steps']
-    if num_update_steps_per_epoch == 0: num_update_steps_per_epoch = 1 # Ensure at least one update if grad_acc > len(dl)
+    if num_update_steps_per_epoch == 0: num_update_steps_per_epoch = 1
 
     if 'num_train_steps' in config['training_config']:
         max_train_steps = config['training_config']['num_train_steps']
@@ -167,10 +173,9 @@ def main(config_path: str):
     print("***** Starting DDPM Training on GMM Density Map *****")
     print(f"  Num epochs = {num_train_epochs}")
     print(f"  Num optimization steps = {max_train_steps}")
-    print(f"  Instantaneous batch size per device = {config['dataloader_config']['batch_size']}") # This is what DataLoader yields
+    print(f"  Instantaneous batch size per device = {config['dataloader_config']['batch_size']}")
     print(f"  Gradient Accumulation steps = {config['training_config']['gradient_accumulation_steps']}")
     print(f"  Effective optimization batch size = {config['dataloader_config']['batch_size'] * config['training_config']['gradient_accumulation_steps']}")
-
 
     global_step = 0
     for epoch in range(num_train_epochs):
@@ -178,8 +183,8 @@ def main(config_path: str):
         progress_bar = tqdm(total=num_update_steps_per_epoch, desc=f"Epoch {epoch+1}/{num_train_epochs}", leave=False)
         epoch_loss = 0.0
         
-        for step, batch in enumerate(train_dataloader): # This loop will run once per epoch for our single-image dataset
-            clean_images = batch.to(device) # batch is the single density map (B=1, C=1, H, W)
+        for step, batch in enumerate(train_dataloader):
+            clean_images = batch.to(device)
             
             # If dataloader_config.batch_size > 1 was intended for multiple *copies* of the image:
             if clean_images.shape[0] == 1 and config['dataloader_config']['batch_size'] > 1:
@@ -197,7 +202,6 @@ def main(config_path: str):
                     model_output = model(noisy_images, timesteps).sample
                     loss = F.mse_loss(model_output, noise)
                 
-                # Scale loss and backpropagate
                 scaler.scale(loss / config['training_config']['gradient_accumulation_steps']).backward()
             else:
                 model_output = model(noisy_images, timesteps).sample
@@ -221,7 +225,7 @@ def main(config_path: str):
                 
                 wandb_run.log({"train_loss_step": loss.item(), "lr": lr_scheduler.get_last_lr()[0], "global_step": global_step})
 
-        avg_epoch_loss = epoch_loss / (step + 1) # Avg loss over actual accumulations in the epoch
+        avg_epoch_loss = epoch_loss / (step + 1)
         wandb_run.log({"train_loss_epoch": avg_epoch_loss, "epoch": epoch + 1})
         progress_bar.set_postfix({"loss": f"{avg_epoch_loss:.4f}"})
         progress_bar.close()
