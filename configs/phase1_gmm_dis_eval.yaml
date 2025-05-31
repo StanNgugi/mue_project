@@ -1,0 +1,50 @@
+# Configuration for evaluating DIS on a GMM density map
+
+# --- Model Loading Configuration ---
+model_load_config:
+  # Path to the output directory from the DDPM training run (Chunk 1.2)
+  # The model and scheduler will be loaded from the 'checkpoint_final' subdirectory within this path.
+  trained_model_output_dir: "results/phase1_gmm_ddpm_train" # Make sure this matches your training output
+  # Optional: If you want to load from a specific epoch checkpoint instead of 'final'
+  # checkpoint_name: "checkpoint_final"
+
+# --- GMM Data Configuration (must match training config for consistent ground truth) ---
+# These parameters should ideally be copied directly from the training config
+gmm_data_config:
+  n_total_modes: 4
+  n_samples_per_mode: 2000 # Must match the n_samples_per_mode used to create the training density map
+  missing_mode_idx: 0     # Index of the mode that was excluded from training
+  layout: 'square'        # 'square' or 'circle'
+  distance_scale: 2.5     # Scale for mode centers
+  cluster_std_dev: 0.25   # Std dev of each Gaussian mode
+  # random_state for GMM generation will be taken from evaluation_config.seed for consistency
+
+# --- Rasterization Configuration (must match training config) ---
+rasterization_config:
+  image_size_h_w: [64, 64] # Target H, W for the density map image
+
+# --- DDPM Sampling Parameters ---
+sampling_config:
+  num_inference_steps: 1000 # Number of steps for sampling (must match scheduler's original config if not overriden)
+  num_generations_for_dis_avg: 50 # Number of independent generation runs to average DIS over
+  seed: 42 # Master seed for reproducibility of sampling and GMM generation
+
+# --- DIS Calculation Parameters ---
+dis_config:
+  dis_timesteps_to_evaluate: [900, 700, 500, 300, 100, 50, 10] # Timesteps at which to calculate DIS
+  dis_num_perturbations: 10 # Number of perturbations per latent for DIS calculation
+  dis_perturbation_scale: 0.05 # Standard deviation for Gaussian noise perturbation for DIS
+
+# --- Evaluation Output & Logging ---
+evaluation_config:
+  output_dir: "results/phase1_gmm_dis_eval" # Directory to save evaluation plots and results
+  device: "cuda" # "cuda" or "cpu"
+  plot_dpi: 150 # DPI for saved matplotlib figures
+  log_dis_plots_to_wandb: True
+  log_gmm_info_to_wandb: True # Log base GMM and training maps once
+
+# --- Weights & Biases Logging Configuration ---
+wandb_config:
+  project_name: "mue_phase1_gmm_dis_eval"
+  run_name_prefix: "gmm_dis_eval"
+  entity: null # Your W&B entity (username or team), or set WANDB_ENTITY env var
