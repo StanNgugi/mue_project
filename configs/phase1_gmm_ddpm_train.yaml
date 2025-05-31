@@ -1,0 +1,76 @@
+# Configuration for training a DDPM on a GMM density map
+
+# --- Data Configuration ---
+gmm_data_config:
+  n_total_modes: 4
+  n_samples_per_mode: 2000 # Number of points to generate for the density map
+  missing_mode_idx: 0     # Index of the mode to exclude from the training density map
+  layout: 'square'        # 'square' or 'circle'
+  distance_scale: 2.5     # Scale for mode centers
+  cluster_std_dev: 0.25   # Std dev of each Gaussian mode
+  # random_state for GMM generation will be taken from training_config.seed for consistency
+
+rasterization_config:
+  image_size_h_w: [64, 64] # Target H, W for the density map image
+  # data_range_xy and normalize_to are handled by the dataset/rasterizer defaults
+
+dataloader_config:
+  batch_size: 16 # Effective batch size. Since dataset has 1 image, loop will repeat it. Or use gradient_accumulation.
+  shuffle: True    # Shuffling a single-item dataset doesn't do much, but good practice.
+  num_workers: 0   # Can increase if data loading is a bottleneck (not for this single image case)
+  pin_memory: True
+
+# --- UNet Model Configuration ---
+unet_config:
+  sample_size: ${rasterization_config.image_size_h_w} # Use same as image_size_h_w
+  in_channels: 1          # Single channel for density map
+  out_channels: 1         # Predicting noise for the single channel
+  layers_per_block: 2
+  block_out_channels: [32, 64, 128, 256] # UNet block channel depths
+  down_block_types:       # Minimalist blocks
+    - "DownBlock2D"
+    - "DownBlock2D"
+    - "DownBlock2D"
+    - "DownBlock2D"
+  up_block_types:
+    - "UpBlock2D"
+    - "UpBlock2D"
+    - "UpBlock2D"
+    - "UpBlock2D"
+  # attention_head_dim: 8 # Can add attention later if needed
+
+# --- DDPMScheduler Configuration ---
+scheduler_config:
+  num_train_timesteps: 1000
+  beta_schedule: "linear" # "linear", "cosine", "squaredcos_cap_v2"
+  beta_start: 0.0001
+  beta_end: 0.02
+  # prediction_type: "epsilon" # Default for DDPMScheduler
+
+# --- Training Configuration ---
+training_config:
+  num_train_epochs: 200 # Number of full passes over the (single) image
+  # num_train_steps: 10000 # Alternative to epochs, total optimization steps
+  learning_rate: 1.0e-4
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_weight_decay: 1.0e-6 # Often 0 for diffusion models, or small like 1e-6
+  adam_epsilon: 1.0e-8
+  lr_scheduler_type: "cosine" # "linear", "cosine", "constant", "constant_with_warmup"
+  lr_warmup_steps: 50
+  gradient_accumulation_steps: 1 # Increase if dataloader_config.batch_size is small but you want larger effective batch
+  seed: 42
+  output_dir: "results/phase1_gmm_ddpm_train" # For model checkpoints and sample images
+  save_images_epochs: 20    # How often to save sample images (in epochs)
+  save_model_epochs: 50     # How often to save model checkpoints
+  num_images_per_eval_save: 4 # Number of sample images to generate during evaluation
+  num_inference_steps_eval: 1000 # Timesteps for sampling during eval
+  device: "cuda" # "cuda" or "cpu"
+  use_amp: False # Automatic Mixed Precision (can speed up training, try True if VRAM is an issue)
+
+# --- Weights & Biases Logging Configuration ---
+wandb_config:
+  project_name: "mue_phase1_gmm_ddpm"
+  run_name_prefix: "gmm_ddpm_train"
+  entity: null # Your W&B entity (username or team), or set WANDB_ENTITY env var
+  log_images_to_wandb: True

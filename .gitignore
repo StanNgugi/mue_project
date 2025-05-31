@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.env
+.venv
+env/
+venv/
+ENV/
+pip-wheel-metadata/
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# Data and Models (Examples - adjust as needed)
+# Large datasets or pre-trained models downloaded locally should generally not be committed.
+# results/ might contain large image sets or model checkpoints.
+# Add specific large files or directories if they are generated locally.
+results/*
+!results/.gitkeep # Allows tracking the 'results' folder itself if empty, but not its content.
+checkpoints/
+models_trained/
+datasets_downloaded/
+wandb/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Specific to this project if temporary files are generated
+temp_outputs/
+*.pth # PyTorch model files (if you decide not to track some checkpoints)
+*.pt
+*.ckpt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Log files
+*.log
