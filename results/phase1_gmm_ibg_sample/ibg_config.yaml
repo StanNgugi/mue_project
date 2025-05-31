@@ -1,0 +1,42 @@
+dis_config:
+  dis_num_perturbations: 5
+  dis_perturbation_scale: 0.05
+evaluation_config:
+  device: cuda
+  log_gmm_info_to_wandb: true
+  log_samples_to_wandb: true
+  output_dir: results/phase1_gmm_ibg_sample
+  plot_dpi: 150
+gmm_data_config:
+  cluster_std_dev: 0.25
+  distance_scale: 2.5
+  layout: square
+  missing_mode_idx: 0
+  n_samples_per_mode: 2000
+  n_total_modes: 4
+ibg_config:
+  guidance_scale: 5.0
+  guidance_timesteps_to_apply:
+  - 900
+  - 800
+  - 700
+  - 600
+  - 500
+  - 400
+  - 300
+  - 200
+  - 100
+model_load_config:
+  trained_model_output_dir: results/phase1_gmm_ddpm_train
+rasterization_config:
+  image_size_h_w:
+  - 64
+  - 64
+sampling_config:
+  num_inference_steps: 1000
+  num_samples_to_generate: 4
+  seed: 42
+wandb_config:
+  entity: null
+  project_name: mue_phase1_gmm_ibg
+  run_name_prefix: gmm_ibg_sample
