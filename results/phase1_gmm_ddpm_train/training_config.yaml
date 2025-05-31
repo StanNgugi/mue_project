@@ -1,0 +1,66 @@
+dataloader_config:
+  batch_size: 16
+  num_workers: 0
+  pin_memory: true
+  shuffle: true
+gmm_data_config:
+  cluster_std_dev: 0.25
+  distance_scale: 2.5
+  layout: square
+  missing_mode_idx: 0
+  n_samples_per_mode: 2000
+  n_total_modes: 4
+rasterization_config:
+  image_size_h_w:
+  - 64
+  - 64
+scheduler_config:
+  beta_end: 0.02
+  beta_schedule: linear
+  beta_start: 0.0001
+  num_train_timesteps: 1000
+training_config:
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-08
+  adam_weight_decay: 1.0e-06
+  device: cuda
+  gradient_accumulation_steps: 1
+  learning_rate: 0.0001
+  lr_scheduler_type: cosine
+  lr_warmup_steps: 50
+  num_images_per_eval_save: 4
+  num_inference_steps_eval: 1000
+  num_train_epochs: 200
+  output_dir: results/phase1_gmm_ddpm_train
+  save_images_epochs: 20
+  save_model_epochs: 50
+  seed: 42
+  use_amp: false
+unet_config:
+  block_out_channels:
+  - 32
+  - 64
+  - 128
+  - 256
+  down_block_types:
+  - DownBlock2D
+  - DownBlock2D
+  - DownBlock2D
+  - DownBlock2D
+  in_channels: 1
+  layers_per_block: 2
+  out_channels: 1
+  sample_size: !!python/tuple
+  - 64
+  - 64
+  up_block_types:
+  - UpBlock2D
+  - UpBlock2D
+  - UpBlock2D
+  - UpBlock2D
+wandb_config:
+  entity: null
+  log_images_to_wandb: true
+  project_name: mue_phase1_gmm_ddpm
+  run_name_prefix: gmm_ddpm_train

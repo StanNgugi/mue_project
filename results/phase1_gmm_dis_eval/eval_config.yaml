@@ -1,0 +1,38 @@
+dis_config:
+  dis_num_perturbations: 10
+  dis_perturbation_scale: 0.05
+  dis_timesteps_to_evaluate:
+  - 900
+  - 700
+  - 500
+  - 300
+  - 100
+  - 50
+  - 10
+evaluation_config:
+  device: cuda
+  log_dis_plots_to_wandb: true
+  log_gmm_info_to_wandb: true
+  output_dir: results/phase1_gmm_dis_eval
+  plot_dpi: 150
+gmm_data_config:
+  cluster_std_dev: 0.25
+  distance_scale: 2.5
+  layout: square
+  missing_mode_idx: 0
+  n_samples_per_mode: 2000
+  n_total_modes: 4
+model_load_config:
+  trained_model_output_dir: results/phase1_gmm_ddpm_train
+rasterization_config:
+  image_size_h_w:
+  - 64
+  - 64
+sampling_config:
+  num_generations_for_dis_avg: 50
+  num_inference_steps: 1000
+  seed: 42
+wandb_config:
+  entity: null
+  project_name: mue_phase1_gmm_dis_eval
+  run_name_prefix: gmm_dis_eval
