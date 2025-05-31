@@ -147,10 +147,15 @@ def main(config_path: str):
     gmm_data_config_for_ref = config['gmm_data_config'].copy()
     gmm_data_config_for_ref['random_state'] = config['sampling_config']['seed']
 
+    # IMPORTANT: Remove 'missing_mode_idx' from the dictionary
+    # so it doesn't conflict with the explicit 'missing_mode_idx=None' argument below.
+    if 'missing_mode_idx' in gmm_data_config_for_ref:
+        del gmm_data_config_for_ref['missing_mode_idx'] # <--- MODIFIED LINE
+
     # Generate full GMM data for reference and plotting
     gmm_info_full = get_gmm_data_for_training_and_evaluation(
         **gmm_data_config_for_ref,
-        missing_mode_idx=None # Get all points for full range and all modes
+        missing_mode_idx=None # Now this will be the ONLY 'missing_mode_idx' passed
     )
     print(f"Reference GMM data range: {gmm_info_full['data_range_xy']}")
 
@@ -158,8 +163,8 @@ def main(config_path: str):
     if config['evaluation_config']['log_gmm_info_to_wandb']:
         # Also rasterize the training density map for logging
         gmm_info_training = get_gmm_data_for_training_and_evaluation(
-            **gmm_data_config_for_ref,
-            missing_mode_idx=config['gmm_data_config']['missing_mode_idx']
+            **gmm_data_config_for_ref, # Use gmm_data_config_for_ref (which now lacks missing_mode_idx)
+            missing_mode_idx=config['gmm_data_config']['missing_mode_idx'] # Re-add original missing mode for training set
         )
         image_size_h_w = tuple(config['rasterization_config']['image_size_h_w'])
         train_density_map = rasterize_points_to_density_map(
