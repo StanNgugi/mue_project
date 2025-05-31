@@ -80,6 +80,7 @@ if __name__ == '__main__':
         "block_out_channels": (16, 16),
         "down_block_types": ["DownBlock2D", "DownBlock2D"],
         "up_block_types": ["UpBlock2D", "UpBlock2D"],
+        "norm_num_groups": 8, # <-- ADDED THIS LINE to ensure divisibility by channel count
     }
     mock_model = UNet2DModel(**mock_unet_config)
     
