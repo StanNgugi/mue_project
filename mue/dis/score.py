@@ -11,7 +11,7 @@ from typing import Tuple, Optional, Dict, Any
 
 def calculate_dis(
     model: torch.nn.Module,
-    scheduler: Any, # DDPMScheduler or similar scheduler object
+    scheduler: Any, # DDPPScheduler or similar scheduler object
     latents: torch.Tensor, # Noisy latents x_t
     timestep: int,        # Current timestep t
     num_perturbations: int = 10,
@@ -40,9 +40,7 @@ def calculate_dis(
                                If False, returns the mean squared difference.
 
     Returns:
-        torch.Tensor: A spatial map of DIS values of shape (H, W) or (C, H, W)
-                      if channels are treated independently.
-                      For minimalist GMM, we expect (H, W) for single channel.
+        torch.Tensor: A spatial map of DIS values of shape (H, W).
     """
     if latents.shape[0] != 1:
         # For simplicity in minimalist phase, we calculate DIS per single latent.
@@ -53,25 +51,12 @@ def calculate_dis(
     with torch.no_grad(): # No gradients needed for DIS calculation
 
         # 1. Get the unperturbed model's predicted noise and estimated x_0
-        # The model predicts noise (epsilon)
         unperturbed_noise_pred = model(latents, timestep).sample
 
-        # Use scheduler to get the estimated x_0 from the unperturbed noise prediction
-        # The `scheduler._get_x_M_from_epsilon` or similar helper is usually internal.
-        # We can simulate the x_0 prediction using the common formula for DDPM:
-        # x_0_pred = (x_t - sqrt(1 - alpha_prod_t) * epsilon_pred) / sqrt(alpha_prod_t)
-        
-        # Simulating x_0 estimate using scheduler's internal logic or a common formula:
-        # For DDPMScheduler, the model typically predicts noise.
-        # We need to compute x_0_pred from x_t and epsilon_pred.
-        # This is a common part of the DDPM denoising step.
         alpha_prod_t = scheduler.alphas_cumprod[timestep]
         sqrt_alpha_prod_t = alpha_prod_t ** 0.5
         sqrt_one_minus_alpha_prod_t = (1 - alpha_prod_t) ** 0.5
         
-        # Equivalent to scheduler.predict_original_sample(latents, timestep, unperturbed_noise_pred)
-        # but for simplicity, we directly compute here.
-        # Note: Some schedulers might have slight variations. This is typical for DDPM.
         unperturbed_x0_pred = (latents - sqrt_one_minus_alpha_prod_t * unperturbed_noise_pred) / sqrt_alpha_prod_t
 
 
@@ -87,19 +72,17 @@ def calculate_dis(
             perturbed_x0_pred = (perturbed_latents - sqrt_one_minus_alpha_prod_t * perturbed_noise_pred) / sqrt_alpha_prod_t
 
             # 4. Calculate squared difference in x_0 estimates
-            # We are interested in spatial differences, so we calculate this element-wise
             squared_diff = (unperturbed_x0_pred - perturbed_x0_pred)**2
             dis_accumulator += squared_diff
 
         if return_raw_dis:
-            # If we want the sum over perturbations
             dis_map = dis_accumulator
         else:
-            # Otherwise, return the mean squared difference
             dis_map = dis_accumulator / num_perturbations
         
-        # For a single channel image, squeeze the channel dimension
-        return dis_map.squeeze(0) # Returns (H, W) from (1, C, H, W) where C=1
+        # --- FIX: Use .squeeze() to remove all singleton dimensions ---
+        # This correctly transforms (1, 1, H, W) to (H, W)
+        return dis_map.squeeze()
 
 
 if __name__ == '__main__':
@@ -135,7 +118,8 @@ if __name__ == '__main__':
     print("\n--- Test 1: Default parameters ---")
     dis_map_1 = calculate_dis(mock_model, mock_scheduler, test_latents, test_timestep)
     print(f"DIS Map 1 shape: {dis_map_1.shape}")
-    print(f"DIS Map 1 (sample values):\n{dis_map_1[0, 0:5, 0:5] if dis_map_1.ndim==3 else dis_map_1[0:5, 0:5]}")
+    # Adjusted slicing for (H, W) shape
+    print(f"DIS Map 1 (sample values):\n{dis_map_1[0:5, 0:5]}") 
     assert dis_map_1.shape == (32, 32), "DIS map shape mismatch for Test 1"
     assert dis_map_1.min() >= 0, "DIS values should be non-negative"
 
