@@ -26,14 +26,13 @@ dist/
 
 # Data and Models (Examples - adjust as needed)
 # Large datasets or pre-trained models downloaded locally should generally not be committed.
-# results/ might contain large image sets or model checkpoints.
-# Add specific large files or directories if they are generated locally.
-results/*
-!results/.gitkeep # Allows tracking the 'results' folder itself if empty, but not its content.
+# We are now tracking all 'results/' content.
+# If specific subdirectories or files within 'results/' become too large later,
+# you can add specific ignore rules for them here (e.g., results/large_temp_data/)
 checkpoints/
 models_trained/
 datasets_downloaded/
-wandb/
+wandb/ # Keep ignoring wandb output directories (as these can get very large)
 
 # OS specific
 .DS_Store
