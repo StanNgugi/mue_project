@@ -12,7 +12,7 @@ from matplotlib.cm import ScalarMappable # For colorbars
 from tqdm.auto import tqdm
 import wandb
 
-# --- ADDED THIS LINE: Import necessary types from 'typing' module ---
+# Import necessary types from 'typing' module
 from typing import Dict, Any, Optional, Tuple, Callable 
 
 # Project-specific imports
@@ -162,26 +162,30 @@ def main(config_path: str):
         entity=config['wandb_config'].get('entity')
     )
 
-    # --- Load Trained Model and Scheduler ---
-    model, scheduler = load_trained_model_and_scheduler(config['model_load_config'], device)
-    
     # --- Generate GMM Data for Reference (ensure consistency with training) ---
-    gmm_data_config_for_ref = config['gmm_data_config'].copy()
-    gmm_data_config_for_ref['random_state'] = config['sampling_config']['seed'] # Use evaluation seed for consistency
+    # Create a copy of the GMM config for generating the FULL GMM (no missing mode)
+    gmm_data_config_for_full_gmm = config['gmm_data_config'].copy()
+    gmm_data_config_for_full_gmm['random_state'] = config['sampling_config']['seed'] 
+    # Crucially, set 'missing_mode_idx' to None for the full GMM generation BEFORE unpacking
+    gmm_data_config_for_full_gmm['missing_mode_idx'] = None 
     
-    # Generate full GMM data to get the consistent data range and visualize missing mode
     gmm_info_full = get_gmm_data_for_training_and_evaluation(
-        **gmm_data_config_for_ref,
-        missing_mode_idx=None # Get all points for full range and all modes
+        **gmm_data_config_for_full_gmm # Now, this correctly passes missing_mode_idx=None
     )
     print(f"Reference GMM data range: {gmm_info_full['data_range_xy']}")
     
-    # Also get the GMM info that the model was trained on (missing mode)
+    # Create another copy of the GMM config for generating the TRAINING GMM (with missing mode)
+    gmm_data_config_for_training = config['gmm_data_config'].copy()
+    gmm_data_config_for_training['random_state'] = config['sampling_config']['seed'] 
+    # This copy retains the original missing_mode_idx from the config
+    
     gmm_info_training = get_gmm_data_for_training_and_evaluation(
-        **gmm_data_config_for_ref,
-        missing_mode_idx=config['gmm_data_config']['missing_mode_idx']
+        **gmm_data_config_for_training # This correctly passes the configured missing_mode_idx
     )
 
+    # --- Load Trained Model and Scheduler ---
+    model, scheduler = load_trained_model_and_scheduler(config['model_load_config'], device)
+    
     # Rasterize the training density map and full density map for initial logging
     image_size_h_w = tuple(config['rasterization_config']['image_size_h_w'])
     train_density_map = rasterize_points_to_density_map(
