@@ -1,0 +1,51 @@
+# Configuration for performing Instability-Biased Guidance (IBG) sampling on a GMM density map
+
+# --- Model Loading Configuration ---
+model_load_config:
+  # Path to the output directory from the DDPM training run (Chunk 1.2)
+  trained_model_output_dir: "results/phase1_gmm_ddpm_train" # Make sure this matches your training output
+
+# --- GMM Data Configuration (for ground truth visualization) ---
+# These parameters should ideally be copied directly from the training config
+gmm_data_config:
+  n_total_modes: 4
+  n_samples_per_mode: 2000
+  missing_mode_idx: 0     # Index of the mode that was excluded from training
+  layout: 'square'
+  distance_scale: 2.5
+  cluster_std_dev: 0.25
+
+# --- Rasterization Configuration (must match training config) ---
+rasterization_config:
+  image_size_h_w: [64, 64] # Target H, W for the density map image
+
+# --- IBG Sampling Parameters ---
+sampling_config:
+  num_inference_steps: 1000 # Number of steps for sampling
+  num_samples_to_generate: 4 # Number of samples to generate and visualize
+  seed: 42 # Master seed for reproducible sampling
+
+# --- DIS Parameters (used by IBG internally for gradient calculation) ---
+dis_config:
+  dis_num_perturbations: 5 # Number of perturbations for calculating DIS gradient
+  dis_perturbation_scale: 0.05 # Standard deviation for Gaussian noise perturbation for DIS gradient
+
+# --- IBG Specific Parameters ---
+ibg_config:
+  guidance_scale: 5.0 # Strength of the instability bias (scalar multiplier for the gradient)
+  # Timesteps where IBG will be active. Crucially, based on our observation, focus on higher timesteps.
+  guidance_timesteps_to_apply: [900, 800, 700, 600, 500, 400, 300, 200, 100] # Apply guidance at these steps
+
+# --- Evaluation Output & Logging ---
+evaluation_config:
+  output_dir: "results/phase1_gmm_ibg_sample" # Directory to save generated samples
+  device: "cuda" # "cuda" or "cpu"
+  plot_dpi: 150 # DPI for saved matplotlib figures
+  log_samples_to_wandb: True
+  log_gmm_info_to_wandb: True # Log base GMM and training maps once
+
+# --- Weights & Biases Logging Configuration ---
+wandb_config:
+  project_name: "mue_phase1_gmm_ibg"
+  run_name_prefix: "gmm_ibg_sample"
+  entity: null # Your W&B entity (username or team), or set WANDB_ENTITY env var
