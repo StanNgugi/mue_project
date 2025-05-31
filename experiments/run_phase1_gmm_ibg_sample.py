@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 import wandb
+from typing import Dict, Any, Tuple, Optional, List # <--- ADDED THIS LINE
 
 # Project-specific imports
 from mue.data_handling.synthetic_generators import get_gmm_data_for_training_and_evaluation
@@ -79,18 +80,18 @@ def plot_generated_gmm_sample(
 
     if gmm_data_info['missing_mode_center'] is not None:
         # Plot training points (excluding the missing mode)
-        ax.scatter(gmm_data_info['training_points'][:, 0], gmm_data_info['training_points'][:, 1], 
+        ax.scatter(gmm_data_info['training_points'][:, 0], gmm_data_info['training_points'][:, 1],
                    c=gmm_data_info['training_labels'], cmap='viridis', s=5, alpha=0.3, zorder=1, label='Training Points')
-        
+
         # Plot missing mode points
         if len(gmm_data_info['missing_mode_points']) > 0:
-            ax.scatter(gmm_data_info['missing_mode_points'][:, 0], gmm_data_info['missing_mode_points'][:, 1], 
+            ax.scatter(gmm_data_info['missing_mode_points'][:, 0], gmm_data_info['missing_mode_points'][:, 1],
                        color='red', s=10, alpha=0.6, zorder=2, label=f"Missing Mode {gmm_data_info['config']['missing_mode_idx']} Points")
             # Highlight missing mode center with a larger marker
             missing_center = gmm_data_info['missing_mode_center']
             ax.scatter(missing_center[0], missing_center[1], marker='*', color='gold', s=400, edgecolor='black', linewidth=2, zorder=4, label=f"Missing Mode {gmm_data_info['config']['missing_mode_idx']} Center")
     else:
-        ax.scatter(gmm_data_info['all_points'][:, 0], gmm_data_info['all_points'][:, 1], 
+        ax.scatter(gmm_data_info['all_points'][:, 0], gmm_data_info['all_points'][:, 1],
                    c=gmm_data_info['all_labels'], cmap='viridis', s=5, alpha=0.3, zorder=1, label='All GMM Points')
 
 
@@ -117,7 +118,7 @@ def main(config_path: str):
     if output_dir.exists():
         print(f"Warning: Output directory {output_dir} already exists. Contents might be overwritten.")
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Save the config file to the output directory for reproducibility
     with open(output_dir / "ibg_config.yaml", 'w') as f:
         yaml.dump(config, f)
@@ -125,7 +126,7 @@ def main(config_path: str):
     # --- Initialize ---
     set_global_seeds(config['sampling_config']['seed'])
     device = torch.device(config['evaluation_config']['device'] if torch.cuda.is_available() else "cpu")
-    
+
     if device.type == 'cuda':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
@@ -141,18 +142,18 @@ def main(config_path: str):
 
     # --- Load Trained Model and Scheduler ---
     model, scheduler = load_trained_model_and_scheduler(config['model_load_config'], device)
-    
+
     # --- Generate GMM Data for Reference (ensure consistency with training) ---
     gmm_data_config_for_ref = config['gmm_data_config'].copy()
     gmm_data_config_for_ref['random_state'] = config['sampling_config']['seed']
-    
+
     # Generate full GMM data for reference and plotting
     gmm_info_full = get_gmm_data_for_training_and_evaluation(
         **gmm_data_config_for_ref,
         missing_mode_idx=None # Get all points for full range and all modes
     )
     print(f"Reference GMM data range: {gmm_info_full['data_range_xy']}")
-    
+
     # Log initial maps to W&B if enabled
     if config['evaluation_config']['log_gmm_info_to_wandb']:
         # Also rasterize the training density map for logging
@@ -162,15 +163,15 @@ def main(config_path: str):
         )
         image_size_h_w = tuple(config['rasterization_config']['image_size_h_w'])
         train_density_map = rasterize_points_to_density_map(
-            gmm_info_training['training_points'], 
-            image_size_h_w, 
-            gmm_info_full['data_range_xy'], 
+            gmm_info_training['training_points'],
+            image_size_h_w,
+            gmm_info_full['data_range_xy'],
             normalize_to=(-1.0, 1.0)
         ).squeeze(0).cpu().numpy()
         full_density_map = rasterize_points_to_density_map(
-            gmm_info_full['all_points'], 
-            image_size_h_w, 
-            gmm_info_full['data_range_xy'], 
+            gmm_info_full['all_points'],
+            image_size_h_w,
+            gmm_info_full['data_range_xy'],
             normalize_to=(-1.0, 1.0)
         ).squeeze(0).cpu().numpy()
 
@@ -183,13 +184,13 @@ def main(config_path: str):
 
     # --- Perform IBG Sampling ---
     print(f"\n***** Starting IBG Sampling for {config['sampling_config']['num_samples_to_generate']} samples *****")
-    
+
     latent_shape = (1, model.config.in_channels, image_size_h_w[0], image_size_h_w[1])
     generated_samples_pil = [] # To accumulate PIL images for make_image_grid and W&B
-    
+
     for i in tqdm(range(config['sampling_config']['num_samples_to_generate']), desc="Generating samples with IBG"):
         sample_generator = torch.Generator(device=device).manual_seed(config['sampling_config']['seed'] + i)
-        
+
         generated_latent = ibg_sample(
             model=model,
             scheduler=scheduler,
@@ -206,11 +207,11 @@ def main(config_path: str):
         # Post-process generated sample (denormalize and convert to 0-255 uint8)
         # Assuming density maps were normalized to [-1, 1]
         generated_map_np = ((generated_latent / 2 + 0.5).clamp(0, 1) * 255).type(torch.uint8).squeeze(0).squeeze(0).cpu().numpy()
-        
+
         # Plot and save individual samples
         plot_file_name = f"ibg_sample_{i+1}.png"
         plot_save_path = output_dir / "generated_samples" / plot_file_name
-        
+
         plot_generated_gmm_sample(
             generated_map_np,
             gmm_info_full,
@@ -219,7 +220,7 @@ def main(config_path: str):
             save_path=plot_save_path,
             dpi=config['evaluation_config']['plot_dpi']
         )
-        
+
         # Convert to PIL image for make_image_grid and W&B logging
         # The generated_map_np is HxW (uint8). PIL.Image.fromarray expects (H, W) or (H, W, C)
         pil_image = Image.fromarray(generated_map_np)
