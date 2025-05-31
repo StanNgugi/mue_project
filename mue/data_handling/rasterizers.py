@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from typing import Tuple, Optional
 
 def rasterize_points_to_density_map(
     points: np.ndarray,
@@ -14,7 +15,7 @@ def rasterize_points_to_density_map(
         points (np.ndarray): Array of shape (N, 2) of (x, y) coordinates.
                              If empty, returns a zero tensor.
         image_size (Tuple[int, int]): Target image dimensions (H, W).
-        data_range_xy (Tuple[Tuple[float, float], Tuple[float, float]]): 
+        data_range_xy (Tuple[Tuple[float, float], Tuple[float, float]]):
             The ((min_x, max_x), (min_y, max_y)) range of the coordinate space
             to be mapped onto the image. Points outside this range will be clipped by np.histogram2d.
         normalize_to (Optional[Tuple[float, float]]): If provided, scales the density map
@@ -32,7 +33,7 @@ def rasterize_points_to_density_map(
         # Ensure points are within the specified range for histogramming
         # np.histogram2d handles points outside the range by not counting them or counting in under/overflow bins if not strict.
         # For our purpose, the range defines the canvas.
-        
+
         # Bins: W for x-dimension, H for y-dimension for np.histogram2d
         # The output histogram H_np has shape (nx, ny) so hist[i,j] is count for x_bins[i]<=x<x_bins[i+1], y_bins[j]<=y<y_bins[j+1]
         # We want our image to be (H, W) where H is rows (y-axis), W is columns (x-axis)
@@ -61,16 +62,42 @@ def rasterize_points_to_density_map(
 
 
 if __name__ == '__main__':
-    from synthetic_generators import get_gmm_data_for_training_and_evaluation
-    
+    # This is a placeholder for `synthetic_generators`.
+    # In a real scenario, you would have this module or replace it with your data loading.
+    class SyntheticGenerators:
+        def get_gmm_data_for_training_and_evaluation(self, n_samples_per_mode, random_state, layout, distance_scale, cluster_std_dev):
+            # For demonstration, we'll create some dummy data
+            np.random.seed(random_state)
+            if layout == 'square':
+                # Create a simple 2-mode GMM-like structure
+                mean1 = np.array([-0.5, -0.5]) * distance_scale
+                mean2 = np.array([0.5, 0.5]) * distance_scale
+                cov = np.array([[cluster_std_dev**2, 0], [0, cluster_std_dev**2]])
+
+                points1 = np.random.multivariate_normal(mean1, cov, n_samples_per_mode)
+                points2 = np.random.multivariate_normal(mean2, cov, n_samples_per_mode)
+                training_points = np.vstack((points1, points2))
+
+            min_coord = -1.0 * distance_scale - 3 * cluster_std_dev
+            max_coord = 1.0 * distance_scale + 3 * cluster_std_dev
+            data_range_xy = ((min_coord, max_coord), (min_coord, max_coord))
+
+            return {
+                'training_points': training_points,
+                'data_range_xy': data_range_xy
+            }
+
+    # Instantiate the dummy generator
+    synthetic_generators = SyntheticGenerators()
+
     print("Testing Rasterizer...")
-    gmm_info = get_gmm_data_for_training_and_evaluation(n_samples_per_mode=50, random_state=42, layout='square', distance_scale=1.0, cluster_std_dev=0.1)
+    gmm_info = synthetic_generators.get_gmm_data_for_training_and_evaluation(n_samples_per_mode=50, random_state=42, layout='square', distance_scale=1.0, cluster_std_dev=0.1)
     train_points = gmm_info['training_points']
     data_range = gmm_info['data_range_xy']
     img_size = (32, 32)
 
     density_tensor = rasterize_points_to_density_map(train_points, img_size, data_range, normalize_to=(-1.0, 1.0))
-    
+
     print(f"Generated density map tensor shape: {density_tensor.shape}")
     print(f"Min value in map: {density_tensor.min().item():.2f}")
     print(f"Max value in map: {density_tensor.max().item():.2f}")
